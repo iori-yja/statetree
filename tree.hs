@@ -2,17 +2,11 @@ module Main where
 
 newtype State = State (Register, [State])
               deriving (Eq, Show)
-data Register = Init
+data Register = Invalid
               | Valid [Int]
 							deriving (Eq, Show)
 type Input    = [Int]
 type Output   = [Int]
-
---unState :: State -> (Signal, [State])
---unState (State(sig,[st])) = (sig,[st])
-
---submodstate :: State -> [State]
---submodstate = snd . unState
 
 type Module = (Input, State) -> (Output, State)
 
@@ -27,7 +21,6 @@ data Modparam =
 
 genericmodule :: Modparam -> (Input, State) -> (Output, State)
 genericmodule p (ipv, State( regv, substate ))
-    | regv == Init = (out, State(Valid $ load Init, substate'))
 		| otherwise    = (out, State(ns, substate'))
 		where
 		out = (output p) (ipv,reg,assign')
@@ -40,11 +33,11 @@ genericmodule p (ipv, State( regv, substate ))
 		mas [] _ _ _ = []
 		mas m a iv s = ((head m) ((head a) iv, head s)):(mas (tail m) (tail a) iv (tail s))
 		load :: Register -> [Int]
-		load Init        = stinitv p--initial vector
+		load Invalid     = stinitv p--initial vector
 		load (Valid reg) = reg
 
 main :: IO()
-main = print $ test ([0], State(Init,[])) 100
+main = print $ test ([0], State(Invalid,[State (Invalid,[])])) 100
 
 test :: (Input, State) -> Int -> [Output]
 test mdl k
@@ -56,9 +49,16 @@ test mdl k
 mod1 :: (Input, State) -> (Output, State)
 mod1 = genericmodule p
   where
-    p = Modparam out ns [0] [] []
-    out (_,r,_) = r
+    p = Modparam out ns [0] [mod2] [(\_ -> [])]
+    out (_,r,(a:[])) = r++a
     ns  (i,_,_) = Valid i
+
+mod2 :: (Input, State) -> (Output, State)
+mod2 = genericmodule p
+  where
+    p = Modparam out ns [0] [] []
+    out (_,(r:[]),_) = [r+1]
+    ns  (_,(r:[]),_) = Valid [r+1]
 -- mod1 :: (Input, State) -> (Output, State)
 -- mod1 ((ip:ips), State( dat, substate ))
 --     | dat == I   = (out, State(R $ load dat,[st1]))
