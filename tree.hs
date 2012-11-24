@@ -10,9 +10,12 @@ type Output   = [Int]
 
 type Module = (Input, State) -> (Output, State)
 
+type Signal = (Integer, Integer) --(Body, Width)
+
 data Modparam =
 	Modparam {
-		 output  :: ((Input,[Int],[Output]) -> Output)
+		 name    :: String
+		,output  :: ((Input,[Int],[Output]) -> Output)
 		,statev' :: ((Input,[Int],[Output]) -> Register)
 		,stinitv :: [Int]
 		,submod  :: [(Input, State) -> (Output, State)]
@@ -29,7 +32,7 @@ genericmodule p (ipv, State( regv, substate ))
 		reg = load regv
 		assign' = map fst sbm
 		substate' = map snd sbm
-		mas :: [(Input, State) -> (Output, State)] -> [(Input,[Int]) -> Input] -> (Input,[Int]) -> [State] -> [(Output, State)]
+		mas :: [(Input,State) -> (Output,State)] -> [(Input,[Int]) -> Input] -> (Input,[Int]) -> [State] -> [(Output,State)]
 		mas [] _ _ _ = []
 		mas m a iv s = ((head m) ((head a) iv, head s)):(mas (tail m) (tail a) iv (tail s))
 		load :: Register -> [Int]
@@ -46,23 +49,24 @@ run mdl k
    where
 	   (oup@(oup0:_),st') = mod1 mdl
 
+
 mod1 :: (Input, State) -> (Output, State)
 mod1 = genericmodule p
-  where
-    p = Modparam out ns defregv [mod2] sl
-    defregv = [0]           -- default register values
-    sl      = [\_ -> []]    -- submodule assign generate logic
-    out (_,r,(a:[])) = r++a -- output logic
-    ns  (i,_,_) = Valid i   -- New State logic
+	where
+		p = Modparam "mod1" out ns defregv [mod2] sl
+		defregv = [0]           -- default register values
+		sl      = [\(_,_) -> []]    -- submodule assign generate logic
+		out (_,r,(a:[])) = r++a -- output logic
+		ns  (i,_,_) = Valid i   -- New State logic
 --       | | |
---       | | +-submodule outputs
---       | +-registers
---       +-inputs
+--       | | \-submodule outputs
+--       | \-registers
+--       \-inputs
 
 mod2 :: (Input, State) -> (Output, State)
 mod2 = genericmodule p
   where
-    p = Modparam out ns [0] [] []
+    p = Modparam "mod2" out ns [0] [] []
     out (_,(r:[]),_) = [r+1]
     ns  (_,(r:[]),_) = Valid [r+1]
 
