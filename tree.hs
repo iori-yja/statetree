@@ -1,4 +1,5 @@
 module Main where
+import Data.Vec as V
 
 newtype State = State (Register, [State])
               deriving (Eq, Show)
