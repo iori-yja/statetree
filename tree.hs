@@ -6,26 +6,24 @@ newtype State a = State (Register a, [State a])
 data Register a = Invalid
               | Valid [a]
 							deriving (Eq, Show)
-type Input a   = [a]
-type Output a  = [a]
-
-type Module a = (Input a, State a) -> (Output a, State a)
+type Input a   = a
+type Output a  = a
 
 data NameTree = NameTree (String,[NameTree])
 							deriving (Eq, Show)
 
-data Modparam a =
+data Modparam i o s =
 	Modparam {
 		 name    :: String
-		,output  :: ((Input a,[a],[Output a]) -> Output a)
-		,statev' :: ((Input a,[a],[Output a]) -> Register a)
-		,stinitv :: [a]
+		,output  :: ((Input i,[s],[Output o]) -> Output o)
+		,statev' :: ((Input i,[s],[Output o]) -> Register s)
+		,stinitv :: [s]
 --		,submod  :: [(Input, State) -> (Output, State)]
-		,submod  :: [Modparam a]
-		,assign  :: [(Input a, [a]) -> [a]]
+		,submod  :: [Modparam i o s]
+		,assign  :: [(Input i, [s]) -> i]
 		}
 
-genericmodule :: Modparam a -> (Input a, State a) -> (Output a, State a)
+genericmodule :: Modparam i o s -> (Input i, State s) -> (Output o, State s)
 genericmodule p (ipv, State( regv, substate )) = (out, State(ns, substate'))
 		where
 		out = (output p) (ipv,reg,assign')
@@ -34,10 +32,10 @@ genericmodule p (ipv, State( regv, substate )) = (out, State(ns, substate'))
 		reg = load p regv
 		assign' = map fst sbm
 		substate' = map snd sbm
-		mas :: [(Input a,State a) -> (Output a,State a)] -> [(Input a,[a]) -> Input a] -> (Input a,[a]) -> [State a] -> [(Output a,State a)]
+		mas :: [(Input i,State s) -> (Output o,State s)] -> [(Input i,[s]) -> Input i] -> (Input i,[s]) -> [State s] -> [(Output o,State s)]
 		mas [] _ _ _ = []
 		mas m a iv s = ((head m) ((head a) iv, head s)):(mas (tail m) (tail a) iv (tail s))
-		load :: Modparam a -> Register a -> [a]
+		load :: Modparam i o s -> Register s -> [s]
 		load p Invalid     = stinitv p--initial vector
 		load _ (Valid reg) = reg
 
@@ -45,17 +43,17 @@ main :: IO()
 main = print $ run ([0], State(Invalid,[State (Invalid,[])])) 100
 --main = print $ printtree mod1
 
-run :: (Input Integer, State Integer) -> Integer -> [Output Integer]
+run :: (Input [Integer], State Integer) -> Integer -> [Output [Integer]]
 run mdl k
 	| k == 0 = [oup]
-	| otherwise = oup:(run (([oup0+1]), st') (k-1))
+	| otherwise = oup:(run ([oup0+1], st') (k-1))
    where
 	   (oup@(oup0:_),st') = genericmodule mod1 mdl
 
-printtree :: Modparam Integer -> NameTree
+printtree :: Modparam Integer Integer Integer -> NameTree
 printtree p = NameTree ((name p), (map printtree (submod p)))
 
-mod1 :: Modparam Integer
+mod1 :: Modparam [Integer] [Integer] Integer
 mod1 = p
 	where
 		p = Modparam "mod1" out ns defregv [mod2] sl
@@ -68,10 +66,9 @@ mod1 = p
 --       | \-registers
 --       \-inputs
 
-mod2 :: Modparam Integer
-mod2 = p
+mod2 :: Modparam [Integer] [Integer] Integer
+mod2 = Modparam "mod2" out ns [0] [] []
   where
-    p = Modparam "mod2" out ns [0] [] []
-    out (_,(r:[]),_) = [r+1]
-    ns  (_,(r:[]),_) = Valid [r+1]
+    out (_,(r:_),_) = [1,r]
+    ns  (_,(r:_),_) = Valid [r,20]
 
